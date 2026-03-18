@@ -404,10 +404,10 @@ async function parsearConIA() {
   const texto = document.getElementById('paste-input').value.trim();
   if (!texto) { showToast('Pegá el mensaje del cliente primero ☁️','red'); return; }
 
-  const btn = document.getElementById('parse-btn');
-  const icon = document.getElementById('parse-btn-icon');
+  const btn   = document.getElementById('parse-btn');
+  const icon  = document.getElementById('parse-btn-icon');
   const label = document.getElementById('parse-btn-text');
-  const errBox = document.getElementById('parse-error');
+  const errBox  = document.getElementById('parse-error');
   const preview = document.getElementById('parsed-preview');
 
   btn.disabled = true;
@@ -416,66 +416,198 @@ async function parsearConIA() {
   errBox.classList.remove('show');
   preview.classList.remove('show');
 
-  const productosDesc = PRODUCTOS.map(p =>
-    `- "${p.nombre}" (id: ${p.id})${p.variantes.length ? ', variantes: ' + p.variantes.join(', ') : ', sin variantes'}, precio: $${p.precio}`
-  ).join('\n');
-
-  const prompt = `Sos un asistente que extrae información de pedidos de una tienda de merchandise de anime llamada "Crema del Cielo".
-
-Los productos disponibles son:
-${productosDesc}
-
-A continuación hay un mensaje de un cliente con su pedido. Extraé la información y devolvé ÚNICAMENTE un JSON válido con esta estructura (sin texto extra, sin markdown, sin explicaciones):
-
-{
-  "nombre": "string o null",
-  "dni": "string o null",
-  "email": "string o null",
-  "telefono": "string o null",
-  "direccion": "string o null",
-  "pais": "string o null (solo si menciona país no argentino)",
-  "envio": "nacional | internacional | retiro | null",
-  "pago": "mercadopago | paypal | null",
-  "notas": "string o null (cualquier aclaración extra del cliente)",
-  "items": [
-    { "prodId": "id del producto", "variante": "nombre de variante o vacío", "cantidad": numero }
-  ]
-}
-
-Para "envio": si menciona retiro en la convención/fuwafuwa/con → "retiro". Si menciona envío internacional o país no argentino → "internacional". Si menciona envío a casa, correo, andreani, oca, etc → "nacional".
-Para "items": intentá hacer coincidir lo que pide con los productos disponibles. Si menciona "llavero tamagotchi" o "tama" usá "llavero-tamagotchi". Si dice solo "llavero" usá "llavero". Ignorá variantes que no existen para ese producto.
-
-Mensaje del cliente:
-${texto}`;
-
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    const data = await res.json();
-    const raw = data.content?.map(b => b.text || '').join('').trim();
-
-    // Strip possible markdown fences
-    const clean = raw.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
-    const parsed = JSON.parse(clean);
-
-    aplicarDatos(parsed);
-
+    const resultado = parsearTextoLocal(texto);
+    aplicarDatos(resultado);
   } catch(e) {
-    errBox.textContent = '⚠️ No pude leer el mensaje. Revisá que esté bien escrito o completá los campos manualmente. (' + e.message + ')';
+    errBox.textContent = '⚠️ No pude leer el mensaje. Completá los campos manualmente. (' + e.message + ')';
     errBox.classList.add('show');
   } finally {
     btn.disabled = false;
-    icon.textContent = '🤖';
-    label.textContent = 'Leer con IA y completar';
+    icon.textContent = '🧠';
+    label.textContent = 'Leer y completar';
   }
+}
+
+function parsearTextoLocal(texto) {
+  const t = texto;
+  const tl = t.toLowerCase();
+  const lineas = t.split(/\n|\r/).map(l => l.trim()).filter(Boolean);
+
+  // ── helpers ──
+  const buscar = (patrones) => {
+    for (const pat of patrones) {
+      const m = t.match(pat);
+      if (m) return m[1]?.trim() || null;
+    }
+    return null;
+  };
+
+  // ── NOMBRE ──
+  let nombre = buscar([
+    /nombre[:\s]+([^\n\r•\-]+)/i,
+    /^([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})/m,
+  ]);
+  // Si la primera línea parece un nombre completo (2-4 palabras capitalizadas)
+  if (!nombre) {
+    const primera = lineas[0];
+    if (/^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(\s+[A-ZÁÉÍÓÚÑA-Za-z]+){1,3}$/.test(primera)) nombre = primera;
+  }
+
+  // ── DNI ──
+  let dni = buscar([
+    /dni[:\s#°]+(\d[\d\.\-\s]{5,12})/i,
+    /d\.n\.i[:\s]+(\d[\d\.\-\s]{5,12})/i,
+    /(\b\d{7,8}\b)/,
+  ]);
+  if (dni) dni = dni.replace(/[\.\-\s]/g,'');
+
+  // ── EMAIL ──
+  let email = null;
+  const emailM = t.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+  if (emailM) email = emailM[0];
+
+  // ── TELÉFONO ──
+  let telefono = buscar([
+    /tel[eé]fono[:\s]+([+\d\s\-\(\)]{7,20})/i,
+    /tel[:\s]+([+\d\s\-\(\)]{7,20})/i,
+    /cel[ular]*[:\s]+([+\d\s\-\(\)]{7,20})/i,
+    /whatsapp[:\s]+([+\d\s\-\(\)]{7,20})/i,
+    /phone[:\s]+([+\d\s\-\(\)]{7,20})/i,
+  ]);
+
+  // ── DIRECCIÓN ──
+  let direccion = buscar([
+    /direcci[oó]n[:\s]+([^\n\r]+)/i,
+    /domicilio[:\s]+([^\n\r]+)/i,
+    /direcc[:\s]+([^\n\r]+)/i,
+    /dir[:\s]+([^\n\r]+)/i,
+  ]);
+
+  // ── PAÍS ──
+  let pais = buscar([/pa[ií]s[:\s]+([^\n\r]+)/i]);
+  const paisesExtranjeros = ['chile','mexico','méxico','españa','colombia','peru','perú','uruguay','bolivia','venezuela','ecuador','paraguay','brasil','brazil','usa','estados unidos','france','alemania'];
+  let esInternacional = false;
+  if (pais && paisesExtranjeros.some(p => pais.toLowerCase().includes(p))) esInternacional = true;
+  if (!pais) {
+    for (const p of paisesExtranjeros) {
+      if (tl.includes(p)) { esInternacional = true; pais = p.charAt(0).toUpperCase()+p.slice(1); break; }
+    }
+  }
+
+  // ── ENVÍO ──
+  let envio = null;
+  if (/retiro|fuwafuwa|fuwa|con\b|convenci[oó]n|evento|busco en mano/i.test(t)) envio = 'retiro';
+  else if (esInternacional || /internacional|exterior|fuera de argentina/i.test(t)) envio = 'internacional';
+  else if (/env[ií]o|correo|andreani|oca|ocasa|nacional|a domicilio|a casa|a mi casa|despacho/i.test(t)) envio = 'nacional';
+  // buscar "ENTREGA:" explícito
+  const entregaM = t.match(/entrega[:\s]+([^\n\r]+)/i);
+  if (entregaM) {
+    const ev = entregaM[1].toLowerCase();
+    if (/retiro|fuwafuwa|con\b/.test(ev)) envio = 'retiro';
+    else if (/internacional/.test(ev)) envio = 'internacional';
+    else if (/nacional|env[ií]o/.test(ev)) envio = 'nacional';
+  }
+
+  // ── PAGO ──
+  let pago = null;
+  if (/mercado\s*pago|mercadopago|mp\b|alias/i.test(t)) pago = 'mercadopago';
+  else if (/paypal/i.test(t)) pago = 'paypal';
+  const medioM = t.match(/medio[:\s]+([^\n\r]+)/i) || t.match(/m[eé]todo[:\s]+([^\n\r]+)/i) || t.match(/pago[:\s]+([^\n\r]+)/i);
+  if (medioM) {
+    const mv = medioM[1].toLowerCase();
+    if (/mercado|mp\b/.test(mv)) pago = 'mercadopago';
+    else if (/paypal/.test(mv)) pago = 'paypal';
+  }
+
+  // ── ESTADO ──
+  let estado = 'pendiente';
+  if (/abonado|pagado|ya pag[ué]|transfer[ií]/i.test(t)) estado = 'pagado';
+
+  // ── PRODUCTOS ──
+  // Mapa de aliases → prodId + variante
+  const aliases = [
+    // Llavero Tamagotchi (antes que llavero genérico)
+    { re:/llavero\s*tama(?:gotchi)?/i,          prodId:'llavero-tamagotchi', variante:null },
+    { re:/tama(?:gotchi)?\s*llavero/i,           prodId:'llavero-tamagotchi', variante:null },
+    { re:/tama\b/i,                              prodId:'llavero-tamagotchi', variante:null },
+    // Llavero acrílico / genérico
+    { re:/llavero\s*acr[ií]lico/i,              prodId:'llavero', variante:null },
+    { re:/llavero(?!\s*tama)/i,                  prodId:'llavero', variante:null },
+    // Stickers
+    { re:/plancha\s*(?:de\s*)?sticker/i,         prodId:'plancha-sticker', variante:null },
+    { re:/plancha/i,                             prodId:'plancha-sticker', variante:null },
+    { re:/sticker\s*vinilo/i,                    prodId:'sticker-vinilo', variante:null },
+    { re:/sticker(?!\s*vinilo)/i,                prodId:'sticker-vinilo', variante:null },
+    // Phone charm
+    { re:/phone\s*charm/i,                       prodId:'phone-charm', variante:null },
+    { re:/phonecharm/i,                          prodId:'phone-charm', variante:null },
+    // Photocards
+    { re:/photocard[s]?/i,                       prodId:'photocards', variante:null },
+    { re:/photo\s*card[s]?/i,                    prodId:'photocards', variante:null },
+    // Standie
+    { re:/standie\s*spinner/i,                   prodId:'standie-spinner', variante:null },
+    { re:/spinner/i,                             prodId:'standie-spinner', variante:null },
+    { re:/standie\s*(?:normal|chibi)?/i,         prodId:'standie-chibi', variante:null },
+    { re:/standie/i,                             prodId:'standie-chibi', variante:null },
+    // Libreta
+    { re:/libreta/i,                             prodId:'libreta', variante:null },
+    // Pins
+    { re:/pin(?:es|s)?\b/i,                      prodId:'pins', variante:null },
+    // Print
+    { re:/print\s*a4/i,                          prodId:'print-a4', variante:null },
+    { re:/print/i,                               prodId:'print-a4', variante:null },
+  ];
+
+  const variantesMap = {
+    'yue+aisu': 'Yue+Aisu', 'yue \+ aisu':'Yue+Aisu', 'yue x aisu':'Yue+Aisu',
+    'yuexaisu':'Yue+Aisu', 'aisu+yue':'Yue+Aisu', 'ambos':'Yue+Aisu', 'los dos':'Yue+Aisu',
+    'yue':'Yue', 'aisu':'Aisu',
+    'lumy':'Lumy', 'frosty':'Frosty',
+    'rayada':'Rayada', 'rayado':'Rayada',
+    'lisa':'Lisa', 'liso':'Lisa',
+    'cuadriculada':'Cuadriculada','cuadriculado':'Cuadriculada',
+    'punteada':'Punteada','punteado':'Punteada','bullet':'Punteada',
+  };
+
+  function detectarVariante(fragmento) {
+    const fl = fragmento.toLowerCase();
+    // orden importa: combinados primero
+    for (const [k,v] of Object.entries(variantesMap)) {
+      if (fl.includes(k)) return v;
+    }
+    return '';
+  }
+
+  function detectarCantidad(fragmento) {
+    const m = fragmento.match(/^[x×\*]?\s*(\d+)|(\d+)\s*[x×\*]|^(\d+)\s/i);
+    if (m) return parseInt(m[1]||m[2]||m[3]);
+    return 1;
+  }
+
+  // Buscar items — recorremos línea por línea
+  const items = [];
+  const vistos = new Set();
+
+  for (const linea of lineas) {
+    const ll = linea.toLowerCase();
+    for (const alias of aliases) {
+      if (!alias.re.test(linea)) continue;
+      const prodId = alias.prodId;
+      const variante = detectarVariante(linea);
+      const cantidad = detectarCantidad(linea.replace(/^[-•*\d.\s]+/, ''));
+      const key = prodId + '|' + variante;
+      if (vistos.has(key)) continue;
+      vistos.add(key);
+      items.push({ prodId, variante, cantidad });
+      break; // una sola coincidencia por línea
+    }
+  }
+
+  // ── NOTAS ──
+  let notas = buscar([/notas?[:\s]+([^\n\r]+)/i, /aclaraci[oó]n[:\s]+([^\n\r]+)/i, /comentario[:\s]+([^\n\r]+)/i]);
+
+  return { nombre, dni, email, telefono, direccion, pais: esInternacional ? pais : null, envio, pago, estado, notas, items };
 }
 
 function aplicarDatos(d) {
