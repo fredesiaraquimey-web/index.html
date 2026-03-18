@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestión de Pedidos — Crema del Cielo</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,300;0,400;0,600;0,700;0,800;1,400&family=Pacifico&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fdf6ff;
+    --surface: #ffffff;
+    --surface2: #f9f0ff;
+    --border: #e8d5f5;
+    --accent: #b57bee;
+    --accent2: #f8a4d0;
+    --accent3: #7ec8e3;
+    --text: #3d2b5e;
+    --text2: #7a6090;
+    --green: #6dbb8a;
+    --red: #e87070;
+    --shadow: 0 4px 24px rgba(150,80,220,0.10);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #c084e8 0%, #e879b0 50%, #7ec8e3 100%);
+    padding: 24px 32px 20px; display: flex; align-items: center; gap: 18px;
+    box-shadow: 0 4px 20px rgba(180,100,230,0.25);
+  }
+  header .logo { font-family: 'Pacifico', cursive; font-size: 2rem; color: #fff; text-shadow: 2px 3px 0 rgba(0,0,0,0.12); }
+  header .subtitle { color: rgba(255,255,255,0.88); font-size: 0.9rem; font-weight: 600; margin-top: 2px; }
+  header .badge { margin-left: auto; background: rgba(255,255,255,0.22); color: #fff; border-radius: 20px; padding: 6px 16px; font-size: 0.82rem; font-weight: 700; border: 1.5px solid rgba(255,255,255,0.35); white-space: nowrap; }
+
+  .tabs { display: flex; background: var(--surface); border-bottom: 2px solid var(--border); padding: 0 24px; overflow-x: auto; }
+  .tab-btn { padding: 14px 22px; border: none; background: none; cursor: pointer; font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text2); border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s; }
+  .tab-btn:hover { color: var(--accent); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 28px 20px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .card { background: var(--surface); border-radius: 18px; border: 1.5px solid var(--border); padding: 26px 28px; box-shadow: var(--shadow); margin-bottom: 22px; }
+  .card h2 { font-size: 1.1rem; font-weight: 800; color: var(--text); margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media(max-width:680px) { .grid-2,.grid-3 { grid-template-columns: 1fr; } }
+
+  label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--text2); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  input, select, textarea { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-family: 'Nunito', sans-serif; font-size: 0.95rem; color: var(--text); background: var(--surface2); transition: border-color 0.2s; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); background: #fff; }
+  textarea { resize: vertical; min-height: 70px; }
+
+  /* ── PASTE ZONE ── */
+  .paste-zone {
+    border: 2.5px dashed var(--accent2); border-radius: 18px;
+    background: linear-gradient(135deg, #fdf0ff, #fff0f8);
+    padding: 24px; margin-bottom: 22px; transition: all 0.2s;
+  }
+  .paste-zone:focus-within { border-color: var(--accent); background: #faf5ff; }
+  .paste-zone h2 { font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .paste-zone .hint { font-size: 0.83rem; color: var(--text2); margin-bottom: 14px; }
+  .paste-zone textarea { min-height: 130px; background: rgba(255,255,255,0.7); border: 1.5px solid var(--border); font-size: 0.9rem; }
+
+  /* ── AI PARSE BUTTON ── */
+  .ai-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 26px; border-radius: 14px; border: none; cursor: pointer;
+    font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 800;
+    background: linear-gradient(135deg, #b57bee, #e879b0);
+    color: #fff; box-shadow: 0 4px 18px rgba(181,123,238,0.35);
+    transition: all 0.18s; margin-top: 12px;
+  }
+  .ai-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(181,123,238,0.45); }
+  .ai-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+  /* ── LOADING SPINNER ── */
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.35); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── PARSED PREVIEW ── */
+  .parsed-preview {
+    display: none; margin-top: 18px; background: #fff;
+    border: 1.5px solid var(--green); border-radius: 14px; padding: 18px 20px;
+  }
+  .parsed-preview.show { display: block; }
+  .parsed-preview h3 { font-size: 0.9rem; font-weight: 800; color: var(--green); margin-bottom: 12px; }
+  .parsed-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 0.82rem; font-weight: 700; margin: 3px; }
+  .parsed-chip.ok { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+  .parsed-chip.warn { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+
+  /* ── PRODUCTS ── */
+  .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr)); gap: 12px; margin-bottom: 6px; }
+  .product-item { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface2); transition: all 0.2s; }
+  .product-item:hover { border-color: var(--accent); }
+  .product-item.has-qty { border-color: var(--accent); background: #f5e8ff; }
+  .prod-name { font-weight: 800; font-size: 0.87rem; margin-bottom: 4px; }
+  .prod-price { font-size: 0.77rem; color: var(--accent); font-weight: 800; margin-bottom: 8px; }
+  .product-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .product-row label { margin: 0; text-transform: none; font-size: 0.82rem; font-weight: 600; color: var(--text); flex: 1; }
+  .qty-input { width: 52px !important; padding: 5px 8px !important; text-align: center; }
+
+  /* ── SUMMARY ── */
+  .summary-box { background: linear-gradient(135deg, #f0e0ff, #fce8f3); border: 1.5px solid var(--accent2); border-radius: 14px; padding: 18px 22px; margin-top: 18px; }
+  .summary-box .total { font-size: 1.5rem; font-weight: 800; color: var(--accent); }
+  .summary-box .items-list { font-size: 0.84rem; color: var(--text2); margin-top: 8px; line-height: 1.7; }
+
+  /* ── BUTTONS ── */
+  .btn { display: inline-flex; align-items: center; gap: 7px; padding: 10px 20px; border-radius: 12px; border: none; cursor: pointer; font-family: 'Nunito', sans-serif; font-size: 0.93rem; font-weight: 800; transition: all 0.18s; }
+  .btn-primary { background: linear-gradient(135deg, #b57bee, #e879b0); color: #fff; box-shadow: 0 4px 15px rgba(181,123,238,0.3); }
+  .btn-primary:hover { transform: translateY(-2px); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1.5px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-green { background: linear-gradient(135deg, #6dbb8a, #4fa870); color: #fff; }
+  .btn-red { background: #e87070; color: #fff; }
+  .btn-sm { padding: 6px 12px; font-size: 0.8rem; border-radius: 8px; }
+  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+
+  /* ── TABLE ── */
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+  .filters input, .filters select { width: auto; flex: 1; min-width: 130px; }
+  .table-wrap { overflow-x: auto; border-radius: 14px; border: 1.5px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  th { background: linear-gradient(135deg, #b57bee22, #e879b022); color: var(--text); font-weight: 800; padding: 12px 14px; text-align: left; font-size: 0.77rem; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+  td { padding: 10px 14px; border-top: 1px solid var(--border); vertical-align: middle; }
+  tr:hover td { background: var(--surface2); }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.73rem; font-weight: 800; white-space: nowrap; }
+  .badge-nacional { background: #e8d5f5; color: #6f42c1; }
+  .badge-internacional { background: #fde8f5; color: #d63384; }
+  .badge-retiro { background: #fff3cd; color: #856404; }
+  select.status-select { width: auto; padding: 4px 8px; font-size: 0.8rem; border-radius: 8px; }
+
+  /* ── STATS ── */
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 14px; margin-bottom: 22px; }
+  .stat-card { background: var(--surface); border-radius: 14px; border: 1.5px solid var(--border); padding: 18px; text-align: center; box-shadow: var(--shadow); }
+  .stat-card .stat-val { font-size: 1.9rem; font-weight: 800; color: var(--accent); font-family: 'Pacifico', cursive; }
+  .stat-card .stat-label { font-size: 0.78rem; font-weight: 700; color: var(--text2); text-transform: uppercase; margin-top: 3px; }
+  .detail-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.87rem; }
+  .detail-row:last-child { border: none; }
+  .detail-row .key { color: var(--text2); font-weight: 600; }
+  .detail-row .val { font-weight: 700; color: var(--text); text-align: right; }
+
+  /* ── MODAL ── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(61,43,94,0.45); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 20px; padding: 28px; max-width: 540px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 16px; }
+
+  /* ── TOAST ── */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #fff; border-left: 4px solid var(--green); border-radius: 12px; padding: 14px 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.15); font-weight: 700; font-size: 0.9rem; transform: translateX(200px); opacity: 0; transition: all 0.3s; z-index: 2000; max-width: 300px; }
+  .toast.show { transform: translateX(0); opacity: 1; }
+
+  /* ── ERROR BOX ── */
+  .error-box { background: #fff5f5; border: 1.5px solid #f8b4b4; border-radius: 12px; padding: 14px 18px; font-size: 0.87rem; color: #c0392b; margin-top: 14px; display: none; }
+  .error-box.show { display: block; }
+
+  .empty { text-align: center; padding: 50px 20px; color: var(--text2); }
+  .empty .big { font-size: 3rem; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">🍦 Crema del Cielo</div>
+    <div class="subtitle">Panel de Gestión de Pedidos — Preventa FuwaFuwaCon 2026</div>
+  </div>
+  <div class="badge">Cierra: 20 Abril 2026</div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="nuevo" onclick="switchTab(this)">✨ Nuevo Pedido</button>
+  <button class="tab-btn" data-tab="lista" onclick="switchTab(this)">📋 Pedidos (<span id="count-badge">0</span>)</button>
+  <button class="tab-btn" data-tab="resumen" onclick="switchTab(this)">📊 Resumen</button>
+</div>
+
+<main>
+
+<!-- ══════════════ TAB: NUEVO ══════════════ -->
+<div id="tab-nuevo" class="tab-panel active">
+
+  <!-- PASTE ZONE -->
+  <div class="paste-zone">
+    <h2>🪄 Pegar mensaje del cliente</h2>
+    <p class="hint">Pegá el texto tal como te lo mandaron — la IA va a leer la info y completar el formulario automáticamente ✨</p>
+    <textarea id="paste-input" placeholder="Ej:
+Holi! Mi pedido sería:
+Nombre: Valentina López
+DNI: 38456123
+Dirección: Av. Corrientes 1234, CABA, CP 1043
+Tel: 11-5678-9012
+Mail: valen@gmail.com
+
+Quiero:
+- 2 Sticker Vinilo Yue
+- 1 Llavero Aisu
+- 1 Photocard Yue+Aisu
+- 3 Pins Yue
+
+Prefiero envío a casa, pago por MercadoPago
+Muchas gracias!!"></textarea>
+
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <button class="ai-btn" id="parse-btn" onclick="parsearConIA()">
+        <span id="parse-btn-icon">🤖</span>
+        <span id="parse-btn-text">Leer con IA y completar</span>
+      </button>
+      <button class="btn btn-secondary btn-sm" onclick="limpiarPaste()">✖ Limpiar</button>
+    </div>
+
+    <div class="error-box" id="parse-error"></div>
+
+    <div class="parsed-preview" id="parsed-preview">
+      <h3>✅ Datos detectados:</h3>
+      <div id="parsed-chips"></div>
+    </div>
+  </div>
+
+  <!-- DATOS CLIENTE -->
+  <div class="card">
+    <h2>👤 Datos del Cliente</h2>
+    <div class="grid-2">
+      <div><label>Nombre y Apellido *</label><input type="text" id="f-nombre" placeholder="Yamamoto Sakura"></div>
+      <div><label>DNI / Pasaporte</label><input type="text" id="f-dni" placeholder="40123456"></div>
+      <div><label>Email *</label><input type="email" id="f-email" placeholder="correo@ejemplo.com"></div>
+      <div><label>Teléfono</label><input type="text" id="f-tel" placeholder="+54 11 1234-5678"></div>
+    </div>
+    <div style="margin-top:14px"><label>Dirección completa + CP</label><input type="text" id="f-dir" placeholder="Calle 123, piso 4B, CABA, CP 1234"></div>
+    <div class="grid-3" style="margin-top:14px">
+      <div>
+        <label>Tipo de envío *</label>
+        <select id="f-envio">
+          <option value="">Seleccionar...</option>
+          <option value="nacional">🇦🇷 Envío Nacional</option>
+          <option value="internacional">🌍 Envío Internacional</option>
+          <option value="retiro">📍 Retiro en FuwaFuwaCon</option>
+        </select>
+      </div>
+      <div>
+        <label>Método de Pago</label>
+        <select id="f-pago">
+          <option value="">Seleccionar...</option>
+          <option value="mercadopago">💜 MercadoPago</option>
+          <option value="paypal">🔵 PayPal</option>
+        </select>
+      </div>
+      <div>
+        <label>Estado</label>
+        <select id="f-estado">
+          <option value="pendiente">⏳ Pendiente</option>
+          <option value="pagado">✅ Pagado</option>
+          <option value="enviado">📦 Enviado</option>
+          <option value="entregado">🎉 Entregado</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:14px"><label>País (internacional)</label><input type="text" id="f-pais" placeholder="Chile, México, España..."></div>
+    <div style="margin-top:14px"><label>Notas del pedido</label><textarea id="f-notas" placeholder="Variante especial, consultas del cliente..."></textarea></div>
+  </div>
+
+  <!-- PRODUCTOS -->
+  <div class="card">
+    <h2>🛍️ Productos</h2>
+    <div class="products-grid" id="products-grid"></div>
+    <div class="summary-box">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:700;color:var(--text2)">TOTAL CARRITO</span>
+        <span class="total" id="total-display">$0</span>
+      </div>
+      <div class="items-list" id="items-list">Ningún producto seleccionado aún ☁️</div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="guardarPedido()">💾 Guardar Pedido</button>
+    <button class="btn btn-secondary" onclick="limpiarFormulario()">🗑️ Limpiar todo</button>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: LISTA ══════════════ -->
+<div id="tab-lista" class="tab-panel">
+  <div class="filters">
+    <input type="text" id="filtro-buscar" placeholder="🔍 Buscar nombre o email..." oninput="renderLista()">
+    <select id="filtro-envio" onchange="renderLista()">
+      <option value="">Todos los envíos</option>
+      <option value="nacional">🇦🇷 Nacional</option>
+      <option value="internacional">🌍 Internacional</option>
+      <option value="retiro">📍 Retiro</option>
+    </select>
+    <select id="filtro-estado" onchange="renderLista()">
+      <option value="">Todos los estados</option>
+      <option value="pendiente">⏳ Pendiente</option>
+      <option value="pagado">✅ Pagado</option>
+      <option value="enviado">📦 Enviado</option>
+      <option value="entregado">🎉 Entregado</option>
+    </select>
+    <button class="btn btn-green btn-sm" onclick="exportarCSV()">⬇️ Exportar Excel</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Cliente</th><th>Email</th><th>Envío</th>
+        <th>Total</th><th>Pago</th><th>Estado</th><th>Fecha</th><th>Acciones</th>
+      </tr></thead>
+      <tbody id="tabla-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: RESUMEN ══════════════ -->
+<div id="tab-resumen" class="tab-panel">
+  <div class="stats-row" id="stats-row"></div>
+  <div class="grid-2">
+    <div class="card"><h2>📦 Por Envío</h2><div id="stats-envio"></div></div>
+    <div class="card"><h2>💰 Por Estado</h2><div id="stats-pago"></div></div>
+  </div>
+  <div class="card"><h2>🛍️ Productos más pedidos</h2><div id="stats-productos"></div></div>
+</div>
+
+</main>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal">
+    <h3 id="modal-title"></h3>
+    <div id="modal-content"></div>
+    <div class="btn-row" style="margin-top:18px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════
+//  PRODUCTS CONFIG
+// ═══════════════════════════════════════════
+const PRODUCTOS = [
+  { id:'sticker-vinilo',     nombre:'Sticker Vinilo',     precio:800,   variantes:['Yue','Aisu','Yue+Aisu'] },
+  { id:'plancha-sticker',    nombre:'Plancha Sticker',    precio:4500,  variantes:[] },
+  { id:'llavero',            nombre:'Llavero',            precio:6000,  variantes:['Yue','Aisu','Yue+Aisu'] },
+  { id:'llavero-tamagotchi', nombre:'Llavero Tamagotchi', precio:6000,  variantes:['Yue','Aisu'] },
+  { id:'phone-charm',        nombre:'Phone Charm',        precio:3500,  variantes:['Lumy','Frosty'] },
+  { id:'photocards',         nombre:'Photocards',         precio:1000,  variantes:['Yue','Aisu','Yue+Aisu'] },
+  { id:'standie-spinner',    nombre:'Standie Spinner',    precio:15000, variantes:['Yue','Aisu'] },
+  { id:'standie-chibi',      nombre:'Standie Chibi',      precio:12000, variantes:['Yue','Aisu'] },
+  { id:'libreta',            nombre:'Libreta',            precio:12000, variantes:['Rayada','Lisa','Cuadriculada','Punteada'] },
+  { id:'pins',               nombre:'Pins',               precio:2000,  variantes:['Yue','Aisu','Yue+Aisu'] },
+  { id:'print-a4',           nombre:'Print A4',           precio:1500,  variantes:[] },
+];
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let pedidos = JSON.parse(localStorage.getItem('cdc-pedidos') || '[]');
+let editingId = null;
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+function init() {
+  renderProductGrid();
+  updateTotal();
+  renderLista();
+  renderResumen();
+  updateCountBadge();
+}
+
+function renderProductGrid() {
+  document.getElementById('products-grid').innerHTML = PRODUCTOS.map(p => {
+    const rows = p.variantes.length
+      ? p.variantes.map(v => `
+          <div class="product-row">
+            <label>${v}</label>
+            <input type="number" class="qty-input" min="0" value="0"
+              data-prod="${p.id}" data-var="${v}" oninput="updateTotal();highlightCard(this)">
+          </div>`).join('')
+      : `<div class="product-row">
+           <label>Cant.</label>
+           <input type="number" class="qty-input" min="0" value="0"
+             data-prod="${p.id}" data-var="" oninput="updateTotal();highlightCard(this)">
+         </div>`;
+    return `<div class="product-item" id="card-${p.id}">
+      <div class="prod-name">${p.nombre}</div>
+      <div class="prod-price">$${p.precio.toLocaleString('es-AR')} c/u</div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+function highlightCard(inp) {
+  const card = document.getElementById('card-' + inp.dataset.prod);
+  const hasAny = [...card.querySelectorAll('.qty-input')].some(i => parseInt(i.value) > 0);
+  card.classList.toggle('has-qty', hasAny);
+}
+
+// ═══════════════════════════════════════════
+//  AI PARSER
+// ═══════════════════════════════════════════
+async function parsearConIA() {
+  const texto = document.getElementById('paste-input').value.trim();
+  if (!texto) { showToast('Pegá el mensaje del cliente primero ☁️','red'); return; }
+
+  const btn = document.getElementById('parse-btn');
+  const icon = document.getElementById('parse-btn-icon');
+  const label = document.getElementById('parse-btn-text');
+  const errBox = document.getElementById('parse-error');
+  const preview = document.getElementById('parsed-preview');
+
+  btn.disabled = true;
+  icon.innerHTML = '<span class="spinner"></span>';
+  label.textContent = 'Leyendo mensaje...';
+  errBox.classList.remove('show');
+  preview.classList.remove('show');
+
+  const productosDesc = PRODUCTOS.map(p =>
+    `- "${p.nombre}" (id: ${p.id})${p.variantes.length ? ', variantes: ' + p.variantes.join(', ') : ', sin variantes'}, precio: $${p.precio}`
+  ).join('\n');
+
+  const prompt = `Sos un asistente que extrae información de pedidos de una tienda de merchandise de anime llamada "Crema del Cielo".
+
+Los productos disponibles son:
+${productosDesc}
+
+A continuación hay un mensaje de un cliente con su pedido. Extraé la información y devolvé ÚNICAMENTE un JSON válido con esta estructura (sin texto extra, sin markdown, sin explicaciones):
+
+{
+  "nombre": "string o null",
+  "dni": "string o null",
+  "email": "string o null",
+  "telefono": "string o null",
+  "direccion": "string o null",
+  "pais": "string o null (solo si menciona país no argentino)",
+  "envio": "nacional | internacional | retiro | null",
+  "pago": "mercadopago | paypal | null",
+  "notas": "string o null (cualquier aclaración extra del cliente)",
+  "items": [
+    { "prodId": "id del producto", "variante": "nombre de variante o vacío", "cantidad": numero }
+  ]
+}
+
+Para "envio": si menciona retiro en la convención/fuwafuwa/con → "retiro". Si menciona envío internacional o país no argentino → "internacional". Si menciona envío a casa, correo, andreani, oca, etc → "nacional".
+Para "items": intentá hacer coincidir lo que pide con los productos disponibles. Si menciona "llavero tamagotchi" o "tama" usá "llavero-tamagotchi". Si dice solo "llavero" usá "llavero". Ignorá variantes que no existen para ese producto.
+
+Mensaje del cliente:
+${texto}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await res.json();
+    const raw = data.content?.map(b => b.text || '').join('').trim();
+
+    // Strip possible markdown fences
+    const clean = raw.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+    const parsed = JSON.parse(clean);
+
+    aplicarDatos(parsed);
+
+  } catch(e) {
+    errBox.textContent = '⚠️ No pude leer el mensaje. Revisá que esté bien escrito o completá los campos manualmente. (' + e.message + ')';
+    errBox.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    icon.textContent = '🤖';
+    label.textContent = 'Leer con IA y completar';
+  }
+}
+
+function aplicarDatos(d) {
+  // Fill form fields
+  if (d.nombre)    document.getElementById('f-nombre').value = d.nombre;
+  if (d.dni)       document.getElementById('f-dni').value    = d.dni;
+  if (d.email)     document.getElementById('f-email').value  = d.email;
+  if (d.telefono)  document.getElementById('f-tel').value    = d.telefono;
+  if (d.direccion) document.getElementById('f-dir').value    = d.direccion;
+  if (d.pais)      document.getElementById('f-pais').value   = d.pais;
+  if (d.envio)     document.getElementById('f-envio').value  = d.envio;
+  if (d.pago)      document.getElementById('f-pago').value   = d.pago;
+  if (d.notas)     document.getElementById('f-notas').value  = d.notas;
+
+  // Fill quantities
+  document.querySelectorAll('.qty-input').forEach(inp => { inp.value = 0; });
+  (d.items || []).forEach(item => {
+    const inp = document.querySelector(`[data-prod="${item.prodId}"][data-var="${item.variante || ''}"]`);
+    if (inp) { inp.value = item.cantidad || 1; highlightCard(inp); }
+  });
+  updateTotal();
+
+  // Show preview chips
+  const chips = [];
+  if (d.nombre)    chips.push({label: '👤 ' + d.nombre, ok: true});
+  if (d.email)     chips.push({label: '📧 ' + d.email, ok: true});
+  if (d.telefono)  chips.push({label: '📱 ' + d.telefono, ok: true});
+  if (d.dni)       chips.push({label: '🪪 ' + d.dni, ok: true});
+  if (d.direccion) chips.push({label: '📍 ' + d.direccion.slice(0,30)+'…', ok: true});
+  if (d.envio)     chips.push({label: '🚚 ' + {nacional:'Nacional',internacional:'Internacional',retiro:'Retiro Con'}[d.envio], ok: true});
+  if (d.pago)      chips.push({label: '💳 ' + {mercadopago:'MercadoPago',paypal:'PayPal'}[d.pago], ok: true});
+  if (!d.email)    chips.push({label: '⚠️ Email no detectado', ok: false});
+  if (!d.envio)    chips.push({label: '⚠️ Tipo de envío no claro', ok: false});
+  (d.items||[]).forEach(i => {
+    const p = PRODUCTOS.find(x => x.id === i.prodId);
+    if (p) chips.push({label: `🛍️ ${p.nombre}${i.variante?' '+i.variante:''} ×${i.cantidad}`, ok: true});
+  });
+
+  document.getElementById('parsed-chips').innerHTML = chips.map(c =>
+    `<span class="parsed-chip ${c.ok?'ok':'warn'}">${c.label}</span>`
+  ).join('');
+  document.getElementById('parsed-preview').classList.add('show');
+  showToast('¡Datos cargados automáticamente! Revisá y guardá 🎉');
+}
+
+function limpiarPaste() {
+  document.getElementById('paste-input').value = '';
+  document.getElementById('parsed-preview').classList.remove('show');
+  document.getElementById('parse-error').classList.remove('show');
+}
+
+// ═══════════════════════════════════════════
+//  CARRITO
+// ═══════════════════════════════════════════
+function getCarrito() {
+  return [...document.querySelectorAll('[data-prod]')]
+    .map(inp => {
+      const qty = parseInt(inp.value) || 0;
+      if (!qty) return null;
+      const prod = PRODUCTOS.find(p => p.id === inp.dataset.prod);
+      return { prodId: inp.dataset.prod, nombre: prod.nombre, variante: inp.dataset.var || '', cantidad: qty, precio: prod.precio, subtotal: prod.precio * qty };
+    }).filter(Boolean);
+}
+
+function updateTotal() {
+  const items = getCarrito();
+  const total = items.reduce((s,i) => s+i.subtotal, 0);
+  document.getElementById('total-display').textContent = '$' + total.toLocaleString('es-AR');
+  const el = document.getElementById('items-list');
+  el.innerHTML = items.length
+    ? items.map(i => `• ${i.nombre}${i.variante?' — '+i.variante:''} ×${i.cantidad} = $${i.subtotal.toLocaleString('es-AR')}`).join('<br>')
+    : 'Ningún producto seleccionado aún ☁️';
+}
+
+// ═══════════════════════════════════════════
+//  GUARDAR / EDITAR
+// ═══════════════════════════════════════════
+function guardarPedido() {
+  const nombre = document.getElementById('f-nombre').value.trim();
+  const email  = document.getElementById('f-email').value.trim();
+  const envio  = document.getElementById('f-envio').value;
+  if (!nombre) { showToast('Falta el nombre del cliente ☁️','red'); return; }
+  if (!email)  { showToast('Falta el email ☁️','red'); return; }
+  if (!envio)  { showToast('Seleccioná el tipo de envío ☁️','red'); return; }
+  const items = getCarrito();
+  if (!items.length) { showToast('Agregá al menos un producto ☁️','red'); return; }
+
+  const pedido = {
+    id: editingId || Date.now().toString(),
+    fecha: editingId ? (pedidos.find(p=>p.id===editingId)||{}).fecha || new Date().toISOString() : new Date().toISOString(),
+    nombre, dni: document.getElementById('f-dni').value.trim(),
+    email, telefono: document.getElementById('f-tel').value.trim(),
+    direccion: document.getElementById('f-dir').value.trim(),
+    pais: document.getElementById('f-pais').value.trim(),
+    envio, pago: document.getElementById('f-pago').value,
+    estado: document.getElementById('f-estado').value,
+    notas: document.getElementById('f-notas').value.trim(),
+    items, total: items.reduce((s,i)=>s+i.subtotal,0)
+  };
+
+  if (editingId) {
+    const idx = pedidos.findIndex(p=>p.id===editingId);
+    if (idx!==-1) pedidos[idx] = pedido;
+    editingId = null;
+  } else {
+    pedidos.push(pedido);
+  }
+
+  localStorage.setItem('cdc-pedidos', JSON.stringify(pedidos));
+  showToast('¡Pedido guardado! ( ́。• ᴗ •。`)');
+  limpiarFormulario();
+  renderLista();
+  renderResumen();
+  updateCountBadge();
+}
+
+function limpiarFormulario() {
+  ['f-nombre','f-dni','f-email','f-tel','f-dir','f-pais','f-notas'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('f-envio').value='';
+  document.getElementById('f-pago').value='';
+  document.getElementById('f-estado').value='pendiente';
+  document.querySelectorAll('.qty-input').forEach(inp => { inp.value=0; });
+  document.querySelectorAll('.product-item').forEach(c => c.classList.remove('has-qty'));
+  limpiarPaste();
+  editingId = null;
+  updateTotal();
+}
+
+// ═══════════════════════════════════════════
+//  LISTA
+// ═══════════════════════════════════════════
+function renderLista() {
+  const buscar       = (document.getElementById('filtro-buscar').value||'').toLowerCase();
+  const filtroEnvio  = document.getElementById('filtro-envio').value;
+  const filtroEstado = document.getElementById('filtro-estado').value;
+
+  let lista = pedidos.filter(p =>
+    (!buscar      || p.nombre.toLowerCase().includes(buscar) || p.email.toLowerCase().includes(buscar)) &&
+    (!filtroEnvio  || p.envio  === filtroEnvio) &&
+    (!filtroEstado || p.estado === filtroEstado)
+  ).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+
+  const tbody = document.getElementById('tabla-body');
+  if (!lista.length) {
+    tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="big">🌸</div><p>No hay pedidos aún</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = lista.map((p,i)=>`
+    <tr>
+      <td><strong>#${i+1}</strong></td>
+      <td><strong>${p.nombre}</strong></td>
+      <td style="color:var(--text2);font-size:0.83rem">${p.email}</td>
+      <td><span class="badge badge-${p.envio}">${envioLabel(p.envio)}</span></td>
+      <td><strong style="color:var(--accent)">$${p.total.toLocaleString('es-AR')}</strong></td>
+      <td style="font-size:0.8rem">${pagoLabel(p.pago)}</td>
+      <td>
+        <select class="status-select" onchange="cambiarEstado('${p.id}',this.value)">
+          <option value="pendiente" ${p.estado==='pendiente'?'selected':''}>⏳ Pendiente</option>
+          <option value="pagado"    ${p.estado==='pagado'   ?'selected':''}>✅ Pagado</option>
+          <option value="enviado"   ${p.estado==='enviado'  ?'selected':''}>📦 Enviado</option>
+          <option value="entregado" ${p.estado==='entregado'?'selected':''}>🎉 Entregado</option>
+        </select>
+      </td>
+      <td style="font-size:0.79rem;color:var(--text2)">${formatFecha(p.fecha)}</td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="verDetalle('${p.id}')">👁️</button>
+        <button class="btn btn-secondary btn-sm" onclick="editarPedido('${p.id}')">✏️</button>
+        <button class="btn btn-red btn-sm"       onclick="eliminarPedido('${p.id}')">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function cambiarEstado(id, estado) {
+  const p = pedidos.find(x=>x.id===id);
+  if (p) { p.estado=estado; localStorage.setItem('cdc-pedidos',JSON.stringify(pedidos)); renderResumen(); showToast('Estado actualizado ✨'); }
+}
+
+function eliminarPedido(id) {
+  if (!confirm('¿Eliminás este pedido?')) return;
+  pedidos = pedidos.filter(p=>p.id!==id);
+  localStorage.setItem('cdc-pedidos',JSON.stringify(pedidos));
+  renderLista(); renderResumen(); updateCountBadge();
+  showToast('Pedido eliminado 🗑️');
+}
+
+function editarPedido(id) {
+  const p = pedidos.find(x=>x.id===id);
+  if (!p) return;
+  editingId = id;
+  document.getElementById('f-nombre').value = p.nombre;
+  document.getElementById('f-dni').value    = p.dni||'';
+  document.getElementById('f-email').value  = p.email;
+  document.getElementById('f-tel').value    = p.telefono||'';
+  document.getElementById('f-dir').value    = p.direccion||'';
+  document.getElementById('f-pais').value   = p.pais||'';
+  document.getElementById('f-envio').value  = p.envio;
+  document.getElementById('f-pago').value   = p.pago||'';
+  document.getElementById('f-estado').value = p.estado;
+  document.getElementById('f-notas').value  = p.notas||'';
+  document.querySelectorAll('.qty-input').forEach(inp=>inp.value=0);
+  p.items.forEach(item=>{
+    const inp = document.querySelector(`[data-prod="${item.prodId}"][data-var="${item.variante}"]`);
+    if (inp) { inp.value=item.cantidad; highlightCard(inp); }
+  });
+  updateTotal();
+  switchTab(document.querySelector('[data-tab="nuevo"]'));
+  showToast('Editando pedido — guardá para confirmar cambios ✏️');
+}
+
+// ═══════════════════════════════════════════
+//  DETALLE MODAL
+// ═══════════════════════════════════════════
+function verDetalle(id) {
+  const p = pedidos.find(x=>x.id===id);
+  if (!p) return;
+  document.getElementById('modal-title').textContent = `Pedido de ${p.nombre}`;
+  document.getElementById('modal-content').innerHTML = `
+    ${row('Email',p.email)} ${row('DNI',p.dni)} ${row('Teléfono',p.telefono)}
+    ${row('Dirección',p.direccion)} ${row('País',p.pais||'Argentina')}
+    ${row('Envío',envioLabel(p.envio))} ${row('Pago',pagoLabel(p.pago))} ${row('Estado',p.estado)}
+    ${row('Fecha',formatFecha(p.fecha))} ${p.notas?row('Notas',p.notas):''}
+    <div style="margin:14px 0 8px;font-weight:800;font-size:0.82rem;color:var(--text2);text-transform:uppercase">Productos</div>
+    ${p.items.map(i=>`<div class="detail-row"><span class="key">${i.nombre}${i.variante?' — '+i.variante:''} ×${i.cantidad}</span><span class="val">$${i.subtotal.toLocaleString('es-AR')}</span></div>`).join('')}
+    <div class="detail-row" style="margin-top:8px;border-top:2px solid var(--accent);padding-top:10px">
+      <span class="key" style="font-size:1rem;font-weight:800;color:var(--text)">TOTAL</span>
+      <span class="val" style="font-size:1.2rem;color:var(--accent)">$${p.total.toLocaleString('es-AR')}</span>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+const row = (k,v) => v ? `<div class="detail-row"><span class="key">${k}</span><span class="val">${v}</span></div>` : '';
+function cerrarModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+// ═══════════════════════════════════════════
+//  RESUMEN
+// ═══════════════════════════════════════════
+function renderResumen() {
+  const total = pedidos.reduce((s,p)=>s+p.total,0);
+  const cobrado = pedidos.filter(p=>['pagado','enviado','entregado'].includes(p.estado)).reduce((s,p)=>s+p.total,0);
+  document.getElementById('stats-row').innerHTML = [
+    ['📦', pedidos.length, 'Pedidos'],
+    ['💜', '$'+(total/1000).toFixed(0)+'K', 'Total preventa'],
+    ['✅', '$'+(cobrado/1000).toFixed(0)+'K', 'Cobrado'],
+    ['⏳', pedidos.filter(p=>p.estado==='pendiente').length, 'Pendientes'],
+    ['🌍', pedidos.filter(p=>p.envio==='internacional').length, 'Internacionales'],
+    ['📍', pedidos.filter(p=>p.envio==='retiro').length, 'Retiros Con'],
+  ].map(([e,v,l])=>`<div class="stat-card"><div class="stat-val">${v}</div><div class="stat-label">${l}</div></div>`).join('');
+
+  const envios={nacional:0,internacional:0,retiro:0};
+  pedidos.forEach(p=>{ if(envios[p.envio]!==undefined) envios[p.envio]++; });
+  document.getElementById('stats-envio').innerHTML = Object.entries(envios)
+    .map(([k,v])=>`<div class="detail-row"><span class="key">${envioLabel(k)}</span><span class="val">${v}</span></div>`).join('');
+
+  const estados={pendiente:0,pagado:0,enviado:0,entregado:0};
+  pedidos.forEach(p=>{ if(estados[p.estado]!==undefined) estados[p.estado]++; });
+  document.getElementById('stats-pago').innerHTML = Object.entries(estados)
+    .map(([k,v])=>`<div class="detail-row"><span class="key">${estadoLabel(k)}</span><span class="val">${v}</span></div>`).join('');
+
+  const prods={};
+  pedidos.forEach(p=>p.items.forEach(i=>{
+    const key=i.nombre+(i.variante?' — '+i.variante:'');
+    prods[key]=(prods[key]||0)+i.cantidad;
+  }));
+  const sorted=Object.entries(prods).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('stats-productos').innerHTML = sorted.length
+    ? sorted.map(([k,v])=>`<div class="detail-row"><span class="key">${k}</span><span class="val">${v} unidades</span></div>`).join('')
+    : '<p style="color:var(--text2)">Sin datos aún 🌸</p>';
+}
+
+// ═══════════════════════════════════════════
+//  EXPORT CSV
+// ═══════════════════════════════════════════
+function exportarCSV() {
+  if (!pedidos.length) { showToast('No hay pedidos para exportar ☁️','red'); return; }
+  const headers=['#','Fecha','Nombre','DNI','Email','Teléfono','Dirección','País','Envío','Pago','Estado','Notas','Productos','Total'];
+  const rows=pedidos.map((p,i)=>[
+    i+1, formatFecha(p.fecha), p.nombre, p.dni||'', p.email, p.telefono||'',
+    p.direccion||'', p.pais||'', envioLabel(p.envio), pagoLabel(p.pago),
+    p.estado, p.notas||'',
+    p.items.map(i=>`${i.nombre}${i.variante?' '+i.variante:''} x${i.cantidad}`).join(' | '),
+    p.total
+  ]);
+  const csv=[headers,...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`pedidos-cremadelcielo-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  showToast('¡Exportado! Abrilo con Excel ✨');
+}
+
+// ═══════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════
+const envioLabel = e => ({nacional:'🇦🇷 Nacional',internacional:'🌍 Internacional',retiro:'📍 Retiro Con'}[e]||e);
+const pagoLabel  = p => ({mercadopago:'💜 MercadoPago',paypal:'🔵 PayPal'}[p]||p||'—');
+const estadoLabel= e => ({pendiente:'⏳ Pendiente',pagado:'✅ Pagado',enviado:'📦 Enviado',entregado:'🎉 Entregado'}[e]||e);
+const formatFecha= iso => { const d=new Date(iso); return d.toLocaleDateString('es-AR')+' '+d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}); };
+
+function updateCountBadge() { document.getElementById('count-badge').textContent = pedidos.length; }
+
+function switchTab(btn) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  const tab = btn.dataset.tab;
+  document.getElementById('tab-'+tab).classList.add('active');
+  if (tab==='lista') renderLista();
+  if (tab==='resumen') renderResumen();
+}
+
+function showToast(msg, type='green') {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.borderLeftColor=type==='red'?'var(--red)':'var(--green)';
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+init();
+</script>
+</body>
+</html>
