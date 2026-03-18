@@ -570,9 +570,18 @@ function parsearTextoLocal(texto) {
     'punteada':'Punteada','punteado':'Punteada','bullet':'Punteada',
   };
 
-  function detectarVariante(fragmento) {
+  function detectarVariante(fragmento, prodId) {
     const fl = fragmento.toLowerCase();
-    // orden importa: combinados primero
+    // Para libreta: la variante es el tipo de interior, no el personaje
+    // Ej: "Libreta de Yue x Aisu (interior Rayado)" -> "Rayada"
+    if (prodId === 'libreta') {
+      if (/rayad[oa]/i.test(fragmento))           return 'Rayada';
+      if (/\blisa\b|\bliso\b/i.test(fragmento))  return 'Lisa';
+      if (/cuadriculad[oa]/i.test(fragmento))     return 'Cuadriculada';
+      if (/puntead[oa]|bullet/i.test(fragmento))  return 'Punteada';
+      return '';
+    }
+    // Para el resto: combinados primero
     for (const [k,v] of Object.entries(variantesMap)) {
       if (fl.includes(k)) return v;
     }
@@ -594,7 +603,7 @@ function parsearTextoLocal(texto) {
     for (const alias of aliases) {
       if (!alias.re.test(linea)) continue;
       const prodId = alias.prodId;
-      const variante = detectarVariante(linea);
+      const variante = detectarVariante(linea, prodId);
       const cantidad = detectarCantidad(linea.replace(/^[-•*\d.\s]+/, ''));
       const key = prodId + '|' + variante;
       if (vistos.has(key)) continue;
