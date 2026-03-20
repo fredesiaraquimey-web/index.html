@@ -320,7 +320,11 @@ Muchas gracias!!"></textarea>
     <div class="card"><h2>📦 Por Envío</h2><div id="stats-envio"></div></div>
     <div class="card"><h2>💰 Por Estado</h2><div id="stats-pago"></div></div>
   </div>
-  <div class="card"><h2>🛍️ Productos más pedidos</h2><div id="stats-productos"></div></div>
+  <div class="grid-3" style="margin-bottom:0">
+    <div class="card"><h2>🔩 Acrilaser</h2><div id="stats-acrilaser"></div></div>
+    <div class="card"><h2>📌 Pins</h2><div id="stats-pins"></div></div>
+    <div class="card"><h2>🖨️ Imprenta</h2><div id="stats-imprenta"></div></div>
+  </div>
 </div>
 
 </main>
@@ -994,15 +998,60 @@ function renderResumen() {
   document.getElementById('stats-pago').innerHTML = Object.entries(estados)
     .map(([k,v])=>`<div class="detail-row"><span class="key">${estadoLabel(k)}</span><span class="val">${v}</span></div>`).join('');
 
-  const prods={};
-  pedidos.forEach(p=>p.items.forEach(i=>{
-    const key=i.nombre+(i.variante?' — '+i.variante:'');
-    prods[key]=(prods[key]||0)+i.cantidad;
+  // Proveedores
+  const ACRILASER = ['llavero','llavero-tamagotchi','standie-spinner','standie-chibi','phone-charm'];
+  const PINS_IDS  = ['pins'];
+  const IMPRENTA  = ['libreta','sticker-vinilo','plancha-sticker','print-a4','photocards'];
+
+  const conteo = {};
+  pedidos.forEach(p => p.items.forEach(i => {
+    const key = i.prodId + '||' + (i.variante||'');
+    if (!conteo[key]) conteo[key] = { nombre: i.nombre, variante: i.variante||'', prodId: i.prodId, total: 0 };
+    conteo[key].total += i.cantidad;
   }));
-  const sorted=Object.entries(prods).sort((a,b)=>b[1]-a[1]);
-  document.getElementById('stats-productos').innerHTML = sorted.length
-    ? sorted.map(([k,v])=>`<div class="detail-row"><span class="key">${k}</span><span class="val">${v} unidades</span></div>`).join('')
-    : '<p style="color:var(--text2)">Sin datos aún 🌸</p>';
+
+  function renderProveedor(elId, ids) {
+    const items = Object.values(conteo)
+      .filter(x => ids.includes(x.prodId))
+      .sort((a,b) => {
+        // Sort by prodId order then variante
+        const ai = ids.indexOf(a.prodId), bi = ids.indexOf(b.prodId);
+        if (ai !== bi) return ai - bi;
+        return a.variante.localeCompare(b.variante);
+      });
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!items.length) { el.innerHTML = '<p style="color:var(--text2);font-size:0.85rem">Sin pedidos aún 🌸</p>'; return; }
+
+    // Group by product name
+    const byProd = {};
+    items.forEach(i => {
+      if (!byProd[i.prodId]) byProd[i.prodId] = { nombre: i.nombre, variantes: [], subtotal: 0 };
+      byProd[i.prodId].variantes.push({ variante: i.variante, total: i.total });
+      byProd[i.prodId].subtotal += i.total;
+    });
+
+    el.innerHTML = Object.values(byProd).map(p => {
+      const varHTML = p.variantes.map(v =>
+        `<div class="detail-row" style="padding:3px 0 3px 12px;font-size:0.82rem;border:none">
+          <span class="key" style="color:var(--text)">${v.variante || '—'}</span>
+          <span class="val" style="font-size:0.88rem">${v.total} ud.</span>
+        </div>`
+      ).join('');
+      const totalProd = p.subtotal;
+      return `<div style="margin-bottom:10px">
+        <div class="detail-row" style="padding:5px 0">
+          <span class="key" style="font-weight:800;font-size:0.9rem;color:var(--accent)">${p.nombre}</span>
+          <span class="val" style="font-weight:800;color:var(--accent)">${totalProd} ud. total</span>
+        </div>
+        ${varHTML}
+      </div>`;
+    }).join('');
+  }
+
+  renderProveedor('stats-acrilaser', ACRILASER);
+  renderProveedor('stats-pins',      PINS_IDS);
+  renderProveedor('stats-imprenta',  IMPRENTA);
 }
 
 // ═══════════════════════════════════════════
