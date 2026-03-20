@@ -240,7 +240,7 @@ Muchas gracias!!"></textarea>
       </div>
       <div>
         <label>Método de Pago</label>
-        <select id="f-pago">
+        <select id="f-pago" onchange="updateTotal()">
           <option value="">Seleccionar...</option>
           <option value="mercadopago">💜 MercadoPago</option>
           <option value="paypal">🔵 PayPal</option>
@@ -264,10 +264,14 @@ Muchas gracias!!"></textarea>
   <div class="card">
     <h2>🛍️ Productos</h2>
     <div class="products-grid" id="products-grid"></div>
-    <div class="summary-box">
-      <div style="display:flex;justify-content:space-between;align-items:center">
+    <div class="summary-box" id="summary-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
         <span style="font-weight:700;color:var(--text2)">TOTAL CARRITO</span>
-        <span class="total" id="total-display">$0</span>
+        <div style="text-align:right">
+          <div class="total" id="total-display">$0</div>
+          <div id="total-usd" style="display:none;font-size:1rem;font-weight:800;color:#1e40af;margin-top:3px">💵 USD —</div>
+          <div id="total-usd-convertido" style="display:none;font-size:0.78rem;font-weight:600;color:#3b82f6;margin-top:1px"></div>
+        </div>
       </div>
       <div class="items-list" id="items-list">Ningún producto seleccionado aún ☁️</div>
     </div>
@@ -588,54 +592,70 @@ function parsearTextoLocal(texto) {
     return '';
   }
 
-  function detectarCantidad(fragmento) {
-    const m = fragmento.match(/^[x×\*]?\s*(\d+)|(\d+)\s*[x×\*]|^(\d+)\s/i);
-    if (m) return parseInt(m[1]||m[2]||m[3]);
+  function detectarCantidad(linea) {
+    // "4x ...", "4 x ...", "× 4", "x4", "4 —", leading number
+    const m = linea.match(/^[-•\s]*([\d]+)\s*[x×xX]\s/i)   // "4x " or "4 x "
+           || linea.match(/^[-•\s]*[x×xX]\s*([\d]+)\s/i)   // "x4 "
+           || linea.match(/^[-•\s]*([\d]+)\s*[-—]/);         // "4 —"
+    if (m) return parseInt(m[1]);
     return 1;
   }
 
   // Buscar items — recorremos línea por línea
-  const items = [];
-  const vistos = new Set();
+  // Usamos un mapa para acumular cantidades si el mismo producto aparece más de una vez
+  const itemsMap = {};
 
   for (const linea of lineas) {
-    const ll = linea.toLowerCase();
+    // Saltar líneas que son claramente datos del cliente, no productos
+    if (/^(nombre|dni|email|tel[eé]|direcc|pa[ií]s|entrega|pago|medio|total|datos|tipo de env)/i.test(linea.trim())) continue;
     for (const alias of aliases) {
       if (!alias.re.test(linea)) continue;
       const prodId = alias.prodId;
       const variante = detectarVariante(linea, prodId);
-      const cantidad = detectarCantidad(linea.replace(/^[-•*\d.\s]+/, ''));
+      const cantidad = detectarCantidad(linea);
       const key = prodId + '|' + variante;
-      if (vistos.has(key)) continue;
-      vistos.add(key);
-      items.push({ prodId, variante, cantidad });
+      if (itemsMap[key]) {
+        itemsMap[key].cantidad += cantidad; // acumular si aparece duplicado
+      } else {
+        itemsMap[key] = { prodId, variante, cantidad };
+      }
       break; // una sola coincidencia por línea
     }
   }
+  const items = Object.values(itemsMap);
 
   // ── NOTAS ──
   let notas = buscar([/notas?[:\s]+([^\n\r]+)/i, /aclaraci[oó]n[:\s]+([^\n\r]+)/i, /comentario[:\s]+([^\n\r]+)/i]);
 
   // ── TOTAL DEL MENSAJE ──
   let totalMensaje = null;
-  const totalM = t.match(/total[:\s$]*\$?\s*([\d\.\,]+)/i);
+  let totalMoneda = 'ARS'; // 'ARS' o 'USD'
+
+  // Detectar si el pedido viene en USD
+  const esUSD = /usd|u\.s\.d|paypal|dólar|dolar/i.test(t);
+  if (esUSD) totalMoneda = 'USD';
+
+  // Extraer valor del total
+  const totalM = t.match(/total[:\s]*(?:USD|\$|ARS)?\s*([\d\.\,]+)/i);
   if (totalM) {
-    totalMensaje = parseInt(totalM[1].replace(/[\.,]/g, '').replace(/0{2}$/, match => match)) ;
-    // handle formats like 108.400 or 108,400
     const raw = totalM[1].replace(/\s/g,'');
-    // If has dot/comma as thousands separator (e.g. 108.400)
-    if (/^\d{1,3}[\.,]\d{3}$/.test(raw)) {
-      totalMensaje = parseInt(raw.replace(/[\.,]/,''));
+    // Formato 108.400 (miles con punto) vs 61.67 (decimales con punto)
+    if (/^\d{1,3}\.\d{3}$/.test(raw)) {
+      totalMensaje = parseInt(raw.replace('.',''));  // miles: 108.400 → 108400
+    } else if (/^\d+,\d{2}$/.test(raw) || /^\d+\.\d{2}$/.test(raw)) {
+      totalMensaje = parseFloat(raw.replace(',','.'));  // decimales: 61.67
     } else {
-      totalMensaje = parseInt(raw.replace(/[\.,]/g,''));
+      totalMensaje = parseFloat(raw.replace(',','.'));
     }
   }
 
   // Para retiro en Con: DNI, email, dirección y teléfono son opcionales
   const esRetiro = envio === 'retiro';
 
-  return { nombre, dni: esRetiro ? (dni||null) : dni, email: esRetiro ? (email||null) : email, telefono: esRetiro ? (telefono||null) : telefono, direccion: esRetiro ? null : direccion, pais: esInternacional ? pais : null, envio, pago, estado, notas, items, totalMensaje };
+  return { nombre, dni: esRetiro ? (dni||null) : dni, email: esRetiro ? (email||null) : email, telefono: esRetiro ? (telefono||null) : telefono, direccion: esRetiro ? null : direccion, pais: esInternacional ? pais : null, envio, pago, estado, notas, items, totalMensaje, totalMoneda };
 }
+
+
 
 function aplicarDatos(d) {
   // Fill form fields
@@ -657,14 +677,21 @@ function aplicarDatos(d) {
   });
   updateTotal();
 
-  // FIX: Validate total against total mentioned in message
+  // Validate total & show USD info
+  const totalCarrito = (d.items||[]).reduce((s,i) => {
+    const prod = PRODUCTOS.find(p => p.id === i.prodId);
+    return s + (prod ? prod.precio * (i.cantidad||1) : 0);
+  }, 0);
+
+
+
   if (d.totalMensaje) {
-    const totalCarrito = (d.items||[]).reduce((s,i) => {
-      const prod = PRODUCTOS.find(p => p.id === i.prodId);
-      return s + (prod ? prod.precio * (i.cantidad||1) : 0);
-    }, 0);
-    if (totalCarrito !== d.totalMensaje) {
-      const errBox = document.getElementById('parse-error');
+    const errBox = document.getElementById('parse-error');
+    // For USD compare USD amounts, for ARS compare ARS
+    const totalMatch = d.totalMoneda === 'ARS'
+      ? Math.abs(totalCarrito - d.totalMensaje) < 10
+      : true; // USD totals can't be directly compared to ARS prices
+    if (!totalMatch) {
       errBox.innerHTML = `⚠️ <strong>¡Revisá el carrito!</strong> El mensaje dice total <strong>$${d.totalMensaje.toLocaleString('es-AR')}</strong> pero el carrito suma <strong>$${totalCarrito.toLocaleString('es-AR')}</strong>. Es posible que falte algún producto.`;
       errBox.classList.add('show');
     }
@@ -678,7 +705,11 @@ function aplicarDatos(d) {
   if (d.dni)       chips.push({label: '🪪 ' + d.dni, ok: true});
   if (d.direccion) chips.push({label: '📍 ' + d.direccion.slice(0,30)+'…', ok: true});
   if (d.envio)     chips.push({label: '🚚 ' + {nacional:'Nacional',internacional:'Internacional',retiro:'Retiro Con'}[d.envio], ok: true});
-  if (d.pago)      chips.push({label: '💳 ' + {mercadopago:'MercadoPago',paypal:'PayPal'}[d.pago], ok: true});
+  if (d.pago === 'paypal' && d.totalMensaje) {
+    chips.push({label: `💵 PayPal — USD ${d.totalMensaje.toFixed(2)}`, ok: true});
+  } else if (d.pago) {
+    chips.push({label: '💳 ' + {mercadopago:'MercadoPago',paypal:'PayPal'}[d.pago], ok: true});
+  }
   if (!d.email)    chips.push({label: '⚠️ Email no detectado', ok: false});
   if (!d.envio)    chips.push({label: '⚠️ Tipo de envío no claro', ok: false});
   (d.items||[]).forEach(i => {
@@ -690,6 +721,17 @@ function aplicarDatos(d) {
     `<span class="parsed-chip ${c.ok?'ok':'warn'}">${c.label}</span>`
   ).join('');
   document.getElementById('parsed-preview').classList.add('show');
+  window._lastParsed = d;
+  // Show USD in total if PayPal
+  if (d.totalMoneda === 'USD' && d.totalMensaje) {
+    const totalARS = (d.items||[]).reduce((s,i) => {
+      const prod = PRODUCTOS.find(p => p.id === i.prodId);
+      return s + (prod ? prod.precio * (i.cantidad||1) : 0);
+    }, 0);
+    mostrarUSDEnTotal(d.totalMensaje, totalARS);
+  } else {
+    ocultarUSD();
+  }
   showToast('¡Datos cargados automáticamente! Revisá y guardá 🎉');
 }
 
@@ -720,6 +762,42 @@ function updateTotal() {
   el.innerHTML = items.length
     ? items.map(i => `• ${i.nombre}${i.variante?' — '+i.variante:''} ×${i.cantidad} = $${i.subtotal.toLocaleString('es-AR')}`).join('<br>')
     : 'Ningún producto seleccionado aún ☁️';
+  // Refresh USD display if PayPal is selected
+  const pago = document.getElementById('f-pago').value;
+  if (pago === 'paypal' && window._lastParsed && window._lastParsed.totalMoneda === 'USD') {
+    mostrarUSDEnTotal(window._lastParsed.totalMensaje, total);
+  } else {
+    ocultarUSD();
+  }
+}
+
+function mostrarUSDEnTotal(totalUSD, totalARS) {
+  const elUSD = document.getElementById('total-usd');
+  const elConv = document.getElementById('total-usd-convertido');
+  if (!elUSD) return;
+  elUSD.textContent = 'USD ' + totalUSD.toFixed(2);
+  elUSD.style.display = 'block';
+  elConv.style.display = 'block';
+  elConv.textContent = 'cargando cotización oficial...';
+  // Fetch live rate
+  fetch('https://dolarapi.com/v1/dolares/oficial')
+    .then(r => r.json())
+    .then(data => {
+      const venta = data.venta;
+      const arsConvertido = (totalUSD * venta).toLocaleString('es-AR', {maximumFractionDigits:0});
+      const fecha = data.fechaActualizacion ? new Date(data.fechaActualizacion).toLocaleDateString('es-AR') : '';
+      elConv.innerHTML = `≈ $${arsConvertido} ARS · oficial $${venta} (${fecha})`;
+    })
+    .catch(() => {
+      elConv.textContent = 'Cotización no disponible';
+    });
+}
+
+function ocultarUSD() {
+  const elUSD = document.getElementById('total-usd');
+  const elConv = document.getElementById('total-usd-convertido');
+  if (elUSD) elUSD.style.display = 'none';
+  if (elConv) elConv.style.display = 'none';
 }
 
 // ═══════════════════════════════════════════
@@ -746,7 +824,8 @@ function guardarPedido() {
     envio, pago: document.getElementById('f-pago').value,
     estado: document.getElementById('f-estado').value,
     notas: document.getElementById('f-notas').value.trim(),
-    items, total: items.reduce((s,i)=>s+i.subtotal,0)
+    items, total: items.reduce((s,i)=>s+i.subtotal,0),
+    totalUSD: (document.getElementById('f-pago').value === 'paypal' && window._lastParsed && window._lastParsed.totalMoneda === 'USD') ? window._lastParsed.totalMensaje : null
   };
 
   if (editingId) {
@@ -802,7 +881,10 @@ function renderLista() {
       <td><strong>${p.nombre}</strong></td>
       <td style="color:var(--text2);font-size:0.83rem">${p.email}</td>
       <td><span class="badge badge-${p.envio}">${envioLabel(p.envio)}</span></td>
-      <td><strong style="color:var(--accent)">$${p.total.toLocaleString('es-AR')}</strong></td>
+      <td>
+        <strong style="color:var(--accent)">$${p.total.toLocaleString('es-AR')}</strong>
+        ${p.totalUSD ? `<div style="font-size:0.78rem;font-weight:800;color:#1e40af">💵 USD ${p.totalUSD.toFixed(2)}</div>` : ''}
+      </td>
       <td style="font-size:0.8rem">${pagoLabel(p.pago)}</td>
       <td>
         <select class="status-select" onchange="cambiarEstado('${p.id}',this.value)">
@@ -873,9 +955,13 @@ function verDetalle(id) {
     <div style="margin:14px 0 8px;font-weight:800;font-size:0.82rem;color:var(--text2);text-transform:uppercase">Productos</div>
     ${p.items.map(i=>`<div class="detail-row"><span class="key">${i.nombre}${i.variante?' — '+i.variante:''} ×${i.cantidad}</span><span class="val">$${i.subtotal.toLocaleString('es-AR')}</span></div>`).join('')}
     <div class="detail-row" style="margin-top:8px;border-top:2px solid var(--accent);padding-top:10px">
-      <span class="key" style="font-size:1rem;font-weight:800;color:var(--text)">TOTAL</span>
+      <span class="key" style="font-size:1rem;font-weight:800;color:var(--text)">TOTAL ARS</span>
       <span class="val" style="font-size:1.2rem;color:var(--accent)">$${p.total.toLocaleString('es-AR')}</span>
-    </div>`;
+    </div>
+    ${p.totalUSD ? `<div class="detail-row" style="padding-top:6px">
+      <span class="key" style="font-weight:800;color:#1e40af">TOTAL USD (PayPal)</span>
+      <span class="val" style="color:#1e40af">USD ${p.totalUSD.toFixed(2)}</span>
+    </div>` : ''}\``;
   document.getElementById('modal-overlay').classList.add('open');
 }
 const row = (k,v) => v ? `<div class="detail-row"><span class="key">${k}</span><span class="val">${v}</span></div>` : '';
@@ -887,14 +973,16 @@ function cerrarModal() { document.getElementById('modal-overlay').classList.remo
 function renderResumen() {
   const total = pedidos.reduce((s,p)=>s+p.total,0);
   const cobrado = pedidos.filter(p=>['pagado','enviado','entregado'].includes(p.estado)).reduce((s,p)=>s+p.total,0);
+  const totalUSDsum = pedidos.filter(p=>p.totalUSD).reduce((s,p)=>s+p.totalUSD,0);
+  const cobradoUSD = pedidos.filter(p=>p.totalUSD && ['pagado','enviado','entregado'].includes(p.estado)).reduce((s,p)=>s+p.totalUSD,0);
   document.getElementById('stats-row').innerHTML = [
     ['📦', pedidos.length, 'Pedidos'],
-    ['💜', '$'+(total/1000).toFixed(0)+'K', 'Total preventa'],
-    ['✅', '$'+(cobrado/1000).toFixed(0)+'K', 'Cobrado'],
+    ['💜', `$${(total/1000).toFixed(0)}K${totalUSDsum>0?' · USD '+totalUSDsum.toFixed(0):''}`, 'Total preventa'],
+    ['✅', `$${(cobrado/1000).toFixed(0)}K${cobradoUSD>0?' · USD '+cobradoUSD.toFixed(0):''}`, 'Cobrado'],
     ['⏳', pedidos.filter(p=>p.estado==='pendiente').length, 'Pendientes'],
     ['🌍', pedidos.filter(p=>p.envio==='internacional').length, 'Internacionales'],
     ['📍', pedidos.filter(p=>p.envio==='retiro').length, 'Retiros Con'],
-  ].map(([e,v,l])=>`<div class="stat-card"><div class="stat-val">${v}</div><div class="stat-label">${l}</div></div>`).join('');
+  ].map(([e,v,l])=>`<div class="stat-card"><div class="stat-val" style="font-size:${v.length>8?'1.1rem':'1.9rem'}">${v}</div><div class="stat-label">${l}</div></div>`).join('');
 
   const envios={nacional:0,internacional:0,retiro:0};
   pedidos.forEach(p=>{ if(envios[p.envio]!==undefined) envios[p.envio]++; });
