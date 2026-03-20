@@ -545,11 +545,11 @@ function parsearTextoLocal(texto) {
     // Photocards
     { re:/photocard[s]?/i,                       prodId:'photocards', variante:null },
     { re:/photo\s*card[s]?/i,                    prodId:'photocards', variante:null },
-    // Standie
-    { re:/standie\s*spinner/i,                   prodId:'standie-spinner', variante:null },
+    // Standie / Standee (ambas grafías)
+    { re:/stand[ei]e\s*spinner/i,                prodId:'standie-spinner', variante:null },
     { re:/spinner/i,                             prodId:'standie-spinner', variante:null },
-    { re:/standie\s*(?:normal|chibi)?/i,         prodId:'standie-chibi', variante:null },
-    { re:/standie/i,                             prodId:'standie-chibi', variante:null },
+    { re:/stand[ei]e\s*(?:normal|chibi)/i,       prodId:'standie-chibi', variante:null },
+    { re:/stand[ei]e/i,                          prodId:'standie-chibi', variante:null },
     // Libreta
     { re:/libreta/i,                             prodId:'libreta', variante:null },
     // Pins
@@ -616,7 +616,25 @@ function parsearTextoLocal(texto) {
   // ── NOTAS ──
   let notas = buscar([/notas?[:\s]+([^\n\r]+)/i, /aclaraci[oó]n[:\s]+([^\n\r]+)/i, /comentario[:\s]+([^\n\r]+)/i]);
 
-  return { nombre, dni, email, telefono, direccion, pais: esInternacional ? pais : null, envio, pago, estado, notas, items };
+  // ── TOTAL DEL MENSAJE ──
+  let totalMensaje = null;
+  const totalM = t.match(/total[:\s$]*\$?\s*([\d\.\,]+)/i);
+  if (totalM) {
+    totalMensaje = parseInt(totalM[1].replace(/[\.,]/g, '').replace(/0{2}$/, match => match)) ;
+    // handle formats like 108.400 or 108,400
+    const raw = totalM[1].replace(/\s/g,'');
+    // If has dot/comma as thousands separator (e.g. 108.400)
+    if (/^\d{1,3}[\.,]\d{3}$/.test(raw)) {
+      totalMensaje = parseInt(raw.replace(/[\.,]/,''));
+    } else {
+      totalMensaje = parseInt(raw.replace(/[\.,]/g,''));
+    }
+  }
+
+  // Para retiro en Con: DNI, email, dirección y teléfono son opcionales
+  const esRetiro = envio === 'retiro';
+
+  return { nombre, dni: esRetiro ? (dni||null) : dni, email: esRetiro ? (email||null) : email, telefono: esRetiro ? (telefono||null) : telefono, direccion: esRetiro ? null : direccion, pais: esInternacional ? pais : null, envio, pago, estado, notas, items, totalMensaje };
 }
 
 function aplicarDatos(d) {
@@ -638,6 +656,19 @@ function aplicarDatos(d) {
     if (inp) { inp.value = item.cantidad || 1; highlightCard(inp); }
   });
   updateTotal();
+
+  // FIX: Validate total against total mentioned in message
+  if (d.totalMensaje) {
+    const totalCarrito = (d.items||[]).reduce((s,i) => {
+      const prod = PRODUCTOS.find(p => p.id === i.prodId);
+      return s + (prod ? prod.precio * (i.cantidad||1) : 0);
+    }, 0);
+    if (totalCarrito !== d.totalMensaje) {
+      const errBox = document.getElementById('parse-error');
+      errBox.innerHTML = `⚠️ <strong>¡Revisá el carrito!</strong> El mensaje dice total <strong>$${d.totalMensaje.toLocaleString('es-AR')}</strong> pero el carrito suma <strong>$${totalCarrito.toLocaleString('es-AR')}</strong>. Es posible que falte algún producto.`;
+      errBox.classList.add('show');
+    }
+  }
 
   // Show preview chips
   const chips = [];
@@ -699,8 +730,9 @@ function guardarPedido() {
   const email  = document.getElementById('f-email').value.trim();
   const envio  = document.getElementById('f-envio').value;
   if (!nombre) { showToast('Falta el nombre del cliente ☁️','red'); return; }
-  if (!email)  { showToast('Falta el email ☁️','red'); return; }
   if (!envio)  { showToast('Seleccioná el tipo de envío ☁️','red'); return; }
+  // Para retiro en Con no se requiere email ni dirección
+  if (envio !== 'retiro' && !email) { showToast('Falta el email ☁️','red'); return; }
   const items = getCarrito();
   if (!items.length) { showToast('Agregá al menos un producto ☁️','red'); return; }
 
